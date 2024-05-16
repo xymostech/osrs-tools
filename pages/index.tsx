@@ -14,6 +14,9 @@ export default function Home() {
               Konar Slayer Calculator
             </Link>
           </li>
+          <li>
+            <Link href="/slayer/duradel">Duradel Slayer Calculator</Link>
+          </li>
         </ul>
       </div>
     </div>

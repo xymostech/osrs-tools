@@ -28,6 +28,8 @@ const emptyUnlockFactors: UnlockFactors = {
   combatLevel: 3,
   slayerLevel: 1,
   magicLevel: 1,
+  strengthLevel: 1,
+  agilityLevel: 1,
   quests: {
     barbarianTraining: false,
     boneVoyage: false,
@@ -41,6 +43,10 @@ const emptyUnlockFactors: UnlockFactors = {
     olafsQuest: false,
     perilousMoons: false,
     priestInPeril: false,
+    lunarDiplomacy: false,
+    deathPlateau: false,
+    cabinFever: false,
+    regicide: false,
   },
   slayerUnlocks: {
     seeingRed: false,
@@ -52,6 +58,7 @@ const emptyUnlockFactors: UnlockFactors = {
     basilocked: false,
     actualVampyreSlayer: false,
     warpedReality: false,
+    hotStuff: false,
   },
 };
 
@@ -60,6 +67,7 @@ const emptySpreadsheetRow: SlayerUnlockSpreadsheetRow = {
   "Slayer level": "0",
   "Combat level": "0",
   "Magic level": "0",
+  "Strength/Agility level": "0",
   "q:Dragon Slayer II": "",
   "q:Lost City": "",
   "q:Barbarian Training": "",
@@ -72,6 +80,10 @@ const emptySpreadsheetRow: SlayerUnlockSpreadsheetRow = {
   "q:Olaf's Quest": "",
   "q:Priest in Peril": "",
   "q:Dragon Slayer I": "",
+  "q:Lunar Diplomacy": "",
+  "q:Death Plateau": "",
+  "q:Cabin Fever": "",
+  "q:Regicide": "",
   "ul:Seeing red": "",
   "ul:Warped Reality": "",
   "ul:Actual Vampyre Slayer": "",
@@ -81,6 +93,7 @@ const emptySpreadsheetRow: SlayerUnlockSpreadsheetRow = {
   "ul:Watch the birdie": "",
   "ul:Basilocked": "",
   "ul:Like a Boss": "",
+  "ul:Hot stuff": "",
 };
 
 it("calculates unlocks from quests", () => {

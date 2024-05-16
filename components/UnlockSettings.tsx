@@ -1,4 +1,4 @@
-import { useState, Fragment } from "react";
+import { useState, Fragment, ReactNode } from "react";
 import { set } from "lodash/fp";
 import classNames from "classnames";
 
@@ -16,17 +16,23 @@ import { BlockFactors } from "../utils/calculateBlockStats";
 export default function UnlockSettings({
   unlockFactors,
   setUnlockFactors,
+  usedQuests,
+  usedUnlocks,
+  showMagic,
+  showStrengthAndAgility,
   blockFactors,
   setBlockFactors,
-  kourendEliteDiaryComplete,
-  setKourendEliteDiaryCompletion,
+  extraSettings,
 }: {
   unlockFactors: UnlockFactors;
   setUnlockFactors: (unlockFactors: UnlockFactors) => void;
+  usedQuests: Set<string>;
+  usedUnlocks: Set<string>;
+  showMagic: boolean;
+  showStrengthAndAgility: boolean;
   blockFactors: BlockFactors;
   setBlockFactors: (blockFactors: BlockFactors) => void;
-  kourendEliteDiaryComplete: boolean;
-  setKourendEliteDiaryCompletion: (kourendEliteDiaryComplete: boolean) => void;
+  extraSettings?: ReactNode;
 }) {
   const [expandedQuests, setExpandedQuests] = useState(false);
   const [expandedUnlocks, setExpandedUnlocks] = useState(false);
@@ -38,18 +44,18 @@ export default function UnlockSettings({
     });
   }
 
-  const totalQuests = questUnlockLabels.size;
-  const completedQuests = Array.from(questUnlockLabels.keys()).filter(
-    (key) => unlockFactors.quests[key],
-  ).length;
+  const totalQuests = usedQuests.size;
+  const completedQuests = Array.from(questUnlockLabels.keys())
+    .filter((key) => unlockFactors.quests[key])
+    .filter((key) => usedQuests.has(key)).length;
 
-  const totalSlayerUnlocks = slayerUnlockLabels.size;
-  const unlockedSlayerUnlocks = Array.from(slayerUnlockLabels.keys()).filter(
-    (key) => unlockFactors.slayerUnlocks[key],
-  ).length;
+  const totalSlayerUnlocks = usedUnlocks.size;
+  const unlockedSlayerUnlocks = Array.from(slayerUnlockLabels.keys())
+    .filter((key) => unlockFactors.slayerUnlocks[key])
+    .filter((key) => usedUnlocks.has(key)).length;
 
   return (
-    <div className="bg-slate-200 overflow-y-hidden flex flex-col">
+    <div className="bg-slate-200 overflow-y-hidden flex flex-col border-2 border-slate-300">
       <div className="text-center text-lg">
         <strong>Character Info</strong>
       </div>
@@ -93,13 +99,41 @@ export default function UnlockSettings({
               />
             </>
           )}
-          <div className="col-span-2">Magic level</div>
-          <NumberInput
-            value={unlockFactors.magicLevel}
-            onChange={(magicLevel) =>
-              setUnlockFactors(set(["magicLevel"], magicLevel, unlockFactors))
-            }
-          />
+          {showMagic && (
+            <>
+              <div className="col-span-2">Magic level</div>
+              <NumberInput
+                value={unlockFactors.magicLevel}
+                onChange={(magicLevel) =>
+                  setUnlockFactors(
+                    set(["magicLevel"], magicLevel, unlockFactors),
+                  )
+                }
+              />
+            </>
+          )}
+          {showStrengthAndAgility && (
+            <>
+              <div className="col-span-2">Strength level</div>
+              <NumberInput
+                value={unlockFactors.strengthLevel}
+                onChange={(strengthLevel) =>
+                  setUnlockFactors(
+                    set(["strengthLevel"], strengthLevel, unlockFactors),
+                  )
+                }
+              />
+              <div className="col-span-2">Agility level</div>
+              <NumberInput
+                value={unlockFactors.agilityLevel}
+                onChange={(agilityLevel) =>
+                  setUnlockFactors(
+                    set(["agilityLevel"], agilityLevel, unlockFactors),
+                  )
+                }
+              />
+            </>
+          )}
           <div className="col-span-2">Quest Points</div>
           <NumberInput
             value={blockFactors.questPoints}
@@ -122,15 +156,7 @@ export default function UnlockSettings({
               }
             />
           </div>
-          <div className="col-span-2">Kourend Elite Diary Complete</div>
-          <div className={"flex items-center justify-center"}>
-            <Checkbox
-              checked={kourendEliteDiaryComplete}
-              onChange={(kourendEliteDiaryComplete) =>
-                setKourendEliteDiaryCompletion(kourendEliteDiaryComplete)
-              }
-            />
-          </div>
+          {extraSettings}
         </div>
         <div>
           <button
@@ -142,8 +168,9 @@ export default function UnlockSettings({
           </button>
           {expandedQuests && (
             <div className="grid grid-cols-4">
-              {Array.from(questUnlockLabels.entries()).map(
-                ([key, [label, extra]], i) => {
+              {Array.from(questUnlockLabels.entries())
+                .filter(([key, _]) => usedQuests.has(key))
+                .map(([key, [label, extra]], i) => {
                   return (
                     <Fragment key={key}>
                       <div
@@ -174,8 +201,7 @@ export default function UnlockSettings({
                       </div>
                     </Fragment>
                   );
-                },
-              )}
+                })}
             </div>
           )}
         </div>
@@ -189,8 +215,9 @@ export default function UnlockSettings({
           </button>
           {expandedUnlocks && (
             <div className="grid grid-cols-4">
-              {Array.from(slayerUnlockLabels.entries()).map(
-                ([key, label], i) => {
+              {Array.from(slayerUnlockLabels.entries())
+                .filter(([key, _]) => usedUnlocks.has(key))
+                .map(([key, label], i) => {
                   return (
                     <Fragment key={key}>
                       <div
@@ -222,8 +249,7 @@ export default function UnlockSettings({
                       </div>
                     </Fragment>
                   );
-                },
-              )}
+                })}
             </div>
           )}
         </div>

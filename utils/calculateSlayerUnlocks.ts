@@ -13,6 +13,10 @@ const questUnlockValues = [
   "olafsQuest",
   "perilousMoons",
   "priestInPeril",
+  "lunarDiplomacy",
+  "deathPlateau",
+  "cabinFever",
+  "regicide",
 ] as const;
 
 type QuestUnlocks = (typeof questUnlockValues)[number];
@@ -53,6 +57,13 @@ export const questUnlockLabels = new Map<QuestUnlocks, [string, string | null]>(
     ["lostCity", ["Lost City", null]],
     ["perilousMoons", ["Perilous Moons", null]],
     ["priestInPeril", ["Priest in Peril", null]],
+    [
+      "lunarDiplomacy",
+      ["Partial completion of Lunar Diplomacy", "After reaching Lunar Isle"],
+    ],
+    ["deathPlateau", ["Death Plateau", null]],
+    ["cabinFever", ["Cabin Fever", null]],
+    ["regicide", ["Regicide", null]],
   ],
 );
 
@@ -72,6 +83,7 @@ const slayerUnlockValues = [
   "basilocked",
   "actualVampyreSlayer",
   "warpedReality",
+  "hotStuff",
 ] as const;
 
 type SlayerUnlocks = (typeof slayerUnlockValues)[number];
@@ -87,6 +99,7 @@ export const slayerUnlockLabels = new Map<SlayerUnlocks, string>([
   ["basilocked", "Basilocked (Basilisks)"],
   ["actualVampyreSlayer", "Actual Vampyre Slayer (Vampyres)"],
   ["warpedReality", "Warped Reality (Warped creatures)"],
+  ["hotStuff", "Hot Stuff (TzHaars)"],
 ]);
 
 for (const val of slayerUnlockValues) {
@@ -100,6 +113,8 @@ export type UnlockFactors = {
   combatLevel: number;
   slayerLevel: number;
   magicLevel: number;
+  strengthLevel: number;
+  agilityLevel: number;
   quests: QuestUnlockFactors;
   slayerUnlocks: SlayerUnlockFactors;
 };
@@ -109,6 +124,7 @@ type SlayerUnlockSpreadsheetRowCols =
   | "Slayer level"
   | "Combat level"
   | "Magic level"
+  | "Strength/Agility level"
   | "q:Dragon Slayer II"
   | "q:Lost City"
   | "q:Barbarian Training"
@@ -121,6 +137,10 @@ type SlayerUnlockSpreadsheetRowCols =
   | "q:Olaf's Quest"
   | "q:Priest in Peril"
   | "q:Dragon Slayer I"
+  | "q:Lunar Diplomacy"
+  | "q:Death Plateau"
+  | "q:Cabin Fever"
+  | "q:Regicide"
   | "ul:Seeing red"
   | "ul:Warped Reality"
   | "ul:Actual Vampyre Slayer"
@@ -129,7 +149,8 @@ type SlayerUnlockSpreadsheetRowCols =
   | "ul:Reptile got ripped"
   | "ul:Watch the birdie"
   | "ul:Basilocked"
-  | "ul:Like a Boss";
+  | "ul:Like a Boss"
+  | "ul:Hot stuff";
 
 export type SlayerUnlockSpreadsheetRow = {
   [Property in SlayerUnlockSpreadsheetRowCols]: string;
@@ -140,6 +161,8 @@ export const defaultUnlockFactors = {
   combatLevel: 126,
   slayerLevel: 99,
   magicLevel: 99,
+  strengthLevel: 99,
+  agilityLevel: 99,
   quests: {
     barbarianTraining: true,
     boneVoyage: true,
@@ -153,6 +176,10 @@ export const defaultUnlockFactors = {
     olafsQuest: true,
     perilousMoons: true,
     priestInPeril: true,
+    lunarDiplomacy: true,
+    deathPlateau: true,
+    cabinFever: true,
+    regicide: true,
   },
   slayerUnlocks: {
     seeingRed: false,
@@ -164,6 +191,7 @@ export const defaultUnlockFactors = {
     basilocked: false,
     actualVampyreSlayer: false,
     warpedReality: false,
+    hotStuff: false,
   },
 };
 
@@ -180,6 +208,10 @@ const questToColName: [QuestUnlocks, SlayerUnlockSpreadsheetRowCols][] = [
   ["priestInPeril", "q:Priest in Peril"],
   ["barbarianTraining", "q:Barbarian Training"],
   ["perilousMoons", "q:Perilous Moons"],
+  ["lunarDiplomacy", "q:Lunar Diplomacy"],
+  ["deathPlateau", "q:Death Plateau"],
+  ["cabinFever", "q:Cabin Fever"],
+  ["regicide", "q:Regicide"],
 ];
 
 const slayerUnlockToColName: [SlayerUnlocks, SlayerUnlockSpreadsheetRowCols][] =
@@ -193,6 +225,7 @@ const slayerUnlockToColName: [SlayerUnlocks, SlayerUnlockSpreadsheetRowCols][] =
     ["actualVampyreSlayer", "ul:Actual Vampyre Slayer"],
     ["warpedReality", "ul:Warped Reality"],
     ["likeABoss", "ul:Like a Boss"],
+    ["hotStuff", "ul:Hot stuff"],
   ];
 
 function calculateUnlockFromFactors(
@@ -201,14 +234,20 @@ function calculateUnlockFromFactors(
 ) {
   if (
     !factors.ignoreCombatLevel &&
-    factors.combatLevel < parseInt(row["Combat level"])
+    factors.combatLevel < parseInt(row["Combat level"], 10)
   ) {
     return false;
   }
-  if (factors.slayerLevel < parseInt(row["Slayer level"])) {
+  if (factors.slayerLevel < parseInt(row["Slayer level"], 10)) {
     return false;
   }
-  if (factors.magicLevel < parseInt(row["Magic level"])) {
+  if (factors.magicLevel < parseInt(row["Magic level"], 10)) {
+    return false;
+  }
+  if (
+    factors.strengthLevel < parseInt(row["Strength/Agility level"], 10) &&
+    factors.agilityLevel < parseInt(row["Strength/Agility level"], 10)
+  ) {
     return false;
   }
   for (const [questKey, colName] of questToColName) {
@@ -227,6 +266,36 @@ function calculateUnlockFromFactors(
   }
 
   return true;
+}
+
+export function calculateUsedQuestsAndUnlocksForMonsters(
+  monsters: string[],
+  unlockRows: SlayerUnlockSpreadsheetRow[],
+): [Set<QuestUnlocks>, Set<SlayerUnlocks>] {
+  const usedUnlockRows = unlockRows.filter((row) =>
+    monsters.includes(row.Monster),
+  );
+
+  const usedQuests: Set<QuestUnlocks> = new Set();
+  const usedUnlocks: Set<SlayerUnlocks> = new Set();
+
+  for (const unlockRow of usedUnlockRows) {
+    if (unlockRow.Monster === "TzHaar") {
+    }
+    for (const [questKey, colName] of questToColName) {
+      if (unlockRow[colName] === "x") {
+        usedQuests.add(questKey);
+      }
+    }
+
+    for (const [slayerUnlockKey, colName] of slayerUnlockToColName) {
+      if (unlockRow[colName] === "x" || unlockRow[colName] === "!") {
+        usedUnlocks.add(slayerUnlockKey);
+      }
+    }
+  }
+
+  return [usedQuests, usedUnlocks];
 }
 
 export default function calculateSlayerUnlocks(

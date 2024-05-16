@@ -15,8 +15,26 @@ async function spreadsheetFetcher(key: [string, string]) {
   return parse(body, { columns: true });
 }
 
-export default function useSpreadsheetData<T>(
+export default function useSpreadsheetData<T extends object>(
   sheetId: string,
-): SWRResponse<T, any, any> {
-  return useSWR(["sheet", sheetId], spreadsheetFetcher);
+): SWRResponse<T[], any, any> {
+  const { data, ...rest } = useSWR(["sheet", sheetId], spreadsheetFetcher);
+
+  return {
+    data: data?.filter((d: T) => {
+      const isVersionRow = Object.values(d).includes("VERSION");
+      if (isVersionRow) {
+        const version = Object.values(d).filter(
+          (val) => val.length > 0 && val !== "VERSION",
+        );
+        console.debug(
+          `Loaded spreadsheet for sheetId=${sheetId} with version=${version[0]}`,
+        );
+        return false;
+      } else {
+        return true;
+      }
+    }),
+    ...rest,
+  };
 }
