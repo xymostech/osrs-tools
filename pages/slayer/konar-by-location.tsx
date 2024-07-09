@@ -1,6 +1,6 @@
-import { useState, ReactNode, Fragment } from "react";
+import { useState, useMemo, ReactNode, Fragment, SetStateAction } from "react";
 import { groupBy, getOr, set, sum } from "lodash/fp";
-import { set as setMutate } from "lodash";
+import { uniq, set as setMutate } from "lodash";
 import classNames from "classnames";
 import { FloatingOverlay } from "@floating-ui/react";
 import Link from "next/link";
@@ -9,24 +9,25 @@ import Image from "next/image";
 import UnlockSettings from "@/components/UnlockSettings";
 import Tooltip from "@/components/Tooltip";
 import Checkbox from "@/components/Checkbox";
+import SharePanel from "@/components/SharePanel";
 
 import useSpreadsheetData from "@/utils/useSpreadsheetData";
 import useLocalStorageState from "@/utils/useLocalStorageState";
 import slayerPointsPerTask from "@/utils/slayerPointsPerTask";
 import calculateSlayerUnlocks, {
   UnlockFactors,
-  defaultUnlockFactors,
   SlayerUnlockSpreadsheetRow,
   calculateUsedQuestsAndUnlocksForMonsters,
 } from "@/utils/calculateSlayerUnlocks";
-import calculateBlockStats, {
-  BlockFactors,
-  defaultBlockFactors,
-} from "@/utils/calculateBlockStats";
+import calculateBlockStats, { BlockFactors } from "@/utils/calculateBlockStats";
 import {
   SlayerTaskPreference,
   SLAYER_TASK_PREFERENCE_LABELS,
 } from "@/utils/SlayerTaskPreference";
+import useCharacterFactors, {
+  shortenCharacterFactors,
+} from "@/utils/useCharacterFactors";
+import { ShareLinkManager } from "@/utils/useShareLink";
 
 type SlayerCalcRow = {
   Monster: string;
@@ -243,43 +244,6 @@ function ColumnHeader({ children }: { children: ReactNode }) {
   );
 }
 
-function addDefaultKeys<T extends object>(oldValue: T, defaultValues: T): T {
-  const result = { ...oldValue };
-  for (const k of Object.keys(defaultValues)) {
-    const key: keyof T = k as keyof T;
-    if (result[key] == null) {
-      result[key] = defaultValues[key];
-    }
-  }
-  return result;
-}
-
-function updateLocalStorageState(
-  oldLocalStorageValue: CharacterFactors,
-): CharacterFactors {
-  const updatedLocalStorageValue = {
-    ...oldLocalStorageValue,
-    unlockFactors: oldLocalStorageValue.unlockFactors ?? defaultBlockFactors,
-    blockFactors: oldLocalStorageValue.blockFactors ?? defaultBlockFactors,
-  };
-  updatedLocalStorageValue.unlockFactors = {
-    ...addDefaultKeys(
-      updatedLocalStorageValue.unlockFactors,
-      defaultUnlockFactors,
-    ),
-    quests: addDefaultKeys(
-      updatedLocalStorageValue.unlockFactors.quests,
-      defaultUnlockFactors.quests,
-    ),
-    slayerUnlocks: addDefaultKeys(
-      updatedLocalStorageValue.unlockFactors.slayerUnlocks,
-      defaultUnlockFactors.slayerUnlocks,
-    ),
-  };
-
-  return updatedLocalStorageValue;
-}
-
 type SlayerCalcUserState = {
   blocked: { [monster: string]: boolean };
   preference: {
@@ -293,40 +257,68 @@ type CharacterFactors = {
   blockFactors: BlockFactors;
 };
 
-const defaultTaskState = {
+const defaultTaskState: SlayerCalcUserState = {
   blocked: {},
   preference: {},
   kourendEliteDiaryComplete: false,
 };
-const defaultCharacterInfo = {
-  unlockFactors: defaultUnlockFactors,
-  blockFactors: defaultBlockFactors,
-};
 
-function SlayerTaskList() {
-  const {
-    data: slayerData,
-    error: error1,
-    isLoading: isLoading1,
-  } = useSpreadsheetData<SlayerCalcRow>("0");
-  const {
-    data: slayerUnlockData,
-    error: error2,
-    isLoading: isLoading2,
-  } = useSpreadsheetData<SlayerUnlockSpreadsheetRow>("1527618709");
+const parseShareLink =
+  (slayerData: SlayerCalcRow[]) =>
+  (shareData: URLSearchParams): SlayerCalcUserState => {
+    const calcState = defaultTaskState;
 
-  const [taskState, setTaskState] = useLocalStorageState<SlayerCalcUserState>(
-    "KONAR_CALC_STATE",
-    defaultTaskState,
-  );
-  const [characterFactors, setCharacterFactors] =
-    useLocalStorageState<CharacterFactors>(
-      "CHARACTER_INFO",
-      defaultCharacterInfo,
-      updateLocalStorageState,
-    );
+    const monsterOrder = uniq(slayerData.map((row) => row.Monster));
 
-  if (isLoading1 || isLoading2) {
+    const blockData = shareData.get("block");
+    const doData = shareData.get("dos");
+
+    const blocks =
+      blockData === ""
+        ? []
+        : blockData?.split(",")?.map((val) => parseInt(val)) || [];
+    const dos =
+      doData === ""
+        ? []
+        : doData?.split(",")?.map((val) => parseInt(val)) || [];
+
+    for (const block of blocks) {
+      calcState.blocked[monsterOrder[block]] = true;
+    }
+
+    for (const doIndex of dos) {
+      setMutate(
+        calcState.preference,
+        [slayerData[doIndex].Monster, slayerData[doIndex].Location],
+        SlayerTaskPreference.DO,
+      );
+    }
+
+    calcState.kourendEliteDiaryComplete = shareData.get("ked") === "1";
+
+    return calcState;
+  };
+
+function SlayerTaskList({
+  slayerData,
+  slayerUnlockData,
+  error,
+  isLoading,
+  taskState,
+  setTaskState,
+  characterFactors,
+  setCharacterFactors,
+}: {
+  slayerData?: SlayerCalcRow[];
+  slayerUnlockData?: SlayerUnlockSpreadsheetRow[];
+  error: any;
+  isLoading: boolean;
+  taskState: SlayerCalcUserState;
+  setTaskState: (state: SetStateAction<SlayerCalcUserState>) => void;
+  characterFactors: CharacterFactors;
+  setCharacterFactors: (factors: SetStateAction<CharacterFactors>) => void;
+}) {
+  if (isLoading) {
     return (
       <div className="flex flex-col items-center mt-40">
         <span className="mb-2">Loading task info...</span>
@@ -335,7 +327,7 @@ function SlayerTaskList() {
     );
   }
 
-  if (!slayerData || !slayerUnlockData || error1 || error2) {
+  if (!slayerData || !slayerUnlockData || error) {
     return <div>An error occurred</div>;
   }
   const tasksByMonster = groupBy((row) => row.Monster, slayerData);
@@ -529,7 +521,62 @@ function Instructions() {
   );
 }
 
-export default function KonarSlayerCalculator() {
+function KonarSlayerCalculator() {
+  const {
+    data: slayerData,
+    error: error1,
+    isLoading: isLoading1,
+  } = useSpreadsheetData<SlayerCalcRow>("0");
+  const {
+    data: slayerUnlockData,
+    error: error2,
+    isLoading: isLoading2,
+  } = useSpreadsheetData<SlayerUnlockSpreadsheetRow>("1527618709");
+
+  const parseShareLinkWithData = useMemo(
+    () => slayerData && parseShareLink(slayerData),
+    [slayerData],
+  );
+
+  const [taskState, setTaskState, saveTaskState] =
+    useLocalStorageState<SlayerCalcUserState>(
+      "KONAR_CALC_STATE",
+      defaultTaskState,
+      parseShareLinkWithData,
+    );
+  const [characterFactors, setCharacterFactors, saveCharacterFactors] =
+    useCharacterFactors();
+
+  function generateShareLinkData(): Map<string, string> | null {
+    if (!slayerData) {
+      return null;
+    }
+
+    const urlMap = shortenCharacterFactors(characterFactors);
+
+    const monsterOrder = uniq(slayerData.map((row) => row.Monster));
+    const blocks = Object.entries(taskState.blocked)
+      .filter(([monster, blocked]) => !!blocked)
+      .map(([monster, blocked]) => monsterOrder.indexOf(monster));
+
+    const dos: number[] = [];
+    for (const [index, row] of slayerData.entries()) {
+      const { Monster, Location } = row;
+
+      const preference = taskState.preference[Monster]?.[Location];
+
+      if (preference === SlayerTaskPreference.DO) {
+        dos.push(index);
+      }
+    }
+
+    urlMap.set("block", blocks.join(","));
+    urlMap.set("dos", dos.join(","));
+    urlMap.set("ked", taskState.kourendEliteDiaryComplete ? "1" : "0");
+
+    return urlMap;
+  }
+
   return (
     <div>
       <div className="flex px-2 h-12 bg-slate-500 text-white items-center">
@@ -539,9 +586,33 @@ export default function KonarSlayerCalculator() {
         <h1 className="flex-1 text-xl text-center font-bold">
           Konar Slayer Calculator
         </h1>
+        <SharePanel
+          generateShareLinkData={generateShareLinkData}
+          saveStates={() => {
+            saveTaskState();
+            saveCharacterFactors();
+          }}
+        />
         <Instructions />
       </div>
-      <SlayerTaskList />
+      <SlayerTaskList
+        slayerData={slayerData}
+        slayerUnlockData={slayerUnlockData}
+        error={error1 || error2}
+        isLoading={isLoading1 || isLoading2}
+        taskState={taskState}
+        setTaskState={setTaskState}
+        characterFactors={characterFactors}
+        setCharacterFactors={setCharacterFactors}
+      />
     </div>
+  );
+}
+
+export default function KonarSlayerCalculatorWithShareData() {
+  return (
+    <ShareLinkManager>
+      <KonarSlayerCalculator />
+    </ShareLinkManager>
   );
 }

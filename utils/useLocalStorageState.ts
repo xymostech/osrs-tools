@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from "react";
 
+import useShareLink, {
+  NO_SHARE_LINK,
+  UNKNOWN_SHARE_LINK,
+} from "./useShareLink";
+
 function readLocalStorage<T>(key: string): T | null {
   if (typeof window === "undefined") {
     return null;
@@ -44,27 +49,53 @@ function readStorageKeyWithDefault<T>(
 export default function useLocalStorageState<T>(
   localStorageKey: string,
   defaultValue: T,
+  parseShareLink?: (share: URLSearchParams) => T,
   updateOldValue?: (oldState: T) => T,
-): [T, (newState: React.SetStateAction<T>) => void] {
-  const [state, setState] = useState<T>(() =>
-    readStorageKeyWithDefault(localStorageKey, defaultValue, updateOldValue),
-  );
+): [T, (newState: React.SetStateAction<T>) => void, () => void] {
+  const [state, setState] = useState<T>(defaultValue);
+  const [loadedFromShareLink, setLoadedFromShareLink] =
+    useState<boolean>(false);
+
+  const { shareLinkData } = useShareLink();
+  const hasShareLink =
+    shareLinkData !== NO_SHARE_LINK && shareLinkData !== UNKNOWN_SHARE_LINK;
 
   useEffect(() => {
-    setState(
-      readStorageKeyWithDefault(localStorageKey, defaultValue, updateOldValue),
-    );
-  }, [localStorageKey, defaultValue, updateOldValue]);
+    if (!hasShareLink) {
+      setState(
+        readStorageKeyWithDefault(
+          localStorageKey,
+          defaultValue,
+          updateOldValue,
+        ),
+      );
+    }
+  }, [localStorageKey, defaultValue, updateOldValue, shareLinkData]);
+
+  useEffect(() => {
+    if (loadedFromShareLink) {
+      return;
+    }
+    if (hasShareLink && parseShareLink) {
+      setState(parseShareLink(shareLinkData));
+      setLoadedFromShareLink(true);
+    }
+  }, [parseShareLink, shareLinkData, loadedFromShareLink]);
 
   return [
     state,
     (newState) => {
       setState(newState);
-      if (isSetStateFunction(newState)) {
-        setLocalStorage(localStorageKey, newState(state));
-      } else {
-        setLocalStorage(localStorageKey, newState);
+      if (!hasShareLink) {
+        if (isSetStateFunction(newState)) {
+          setLocalStorage(localStorageKey, newState(state));
+        } else {
+          setLocalStorage(localStorageKey, newState);
+        }
       }
+    },
+    () => {
+      setLocalStorage(localStorageKey, state);
     },
   ];
 }

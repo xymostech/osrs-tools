@@ -228,6 +228,47 @@ const slayerUnlockToColName: [SlayerUnlocks, SlayerUnlockSpreadsheetRowCols][] =
     ["hotStuff", "ul:Hot stuff"],
   ];
 
+export const shorthandUnlockFactorKeys: [keyof UnlockFactors, string][] = [
+  ["ignoreCombatLevel", "icl"],
+  ["combatLevel", "cl"],
+  ["slayerLevel", "sly"],
+  ["magicLevel", "mag"],
+  ["strengthLevel", "str"],
+  ["agilityLevel", "agi"],
+];
+
+export const shorthandQuestUnlockKeys: [QuestUnlocks, string][] = [
+  ["elementalWorkshopI", "ewi"],
+  ["olafsQuest", "oq"],
+  ["mourningsEndPartII", "meii"],
+  ["desertTreasureI", "dti"],
+  ["dragonSlayerII", "dsii"],
+  ["boneVoyage", "bv"],
+  ["dragonSlayerI", "dsi"],
+  ["horrorFromTheDeep", "hfd"],
+  ["lostCity", "lc"],
+  ["priestInPeril", "pp"],
+  ["barbarianTraining", "bt"],
+  ["perilousMoons", "pm"],
+  ["lunarDiplomacy", "ld"],
+  ["deathPlateau", "dp"],
+  ["cabinFever", "cf"],
+  ["regicide", "rc"],
+];
+
+export const shorthandSlayerUnlockKeys: [SlayerUnlocks, string][] = [
+  ["seeingRed", "sr"],
+  ["iHopeYouMithMe", "ihym"],
+  ["watchTheBirdie", "wb"],
+  ["reptileGotRipped", "rr"],
+  ["stopTheWyvern", "sw"],
+  ["basilocked", "bl"],
+  ["actualVampyreSlayer", "vs"],
+  ["warpedReality", "wr"],
+  ["likeABoss", "lb"],
+  ["hotStuff", "hs"],
+];
+
 function calculateUnlockFromFactors(
   row: SlayerUnlockSpreadsheetRow,
   factors: UnlockFactors,

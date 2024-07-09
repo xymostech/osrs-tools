@@ -3,6 +3,11 @@ export type BlockFactors = {
   lumbridgeEliteComplete: boolean;
 };
 
+export const shorthandBlockFactorKeys: [keyof BlockFactors, string][] = [
+  ["questPoints", "qp"],
+  ["lumbridgeEliteComplete", "le"],
+];
+
 export const defaultBlockFactors: BlockFactors = {
   questPoints: 308,
   lumbridgeEliteComplete: true,

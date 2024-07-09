@@ -1,5 +1,5 @@
-import { useState, ReactNode, Fragment } from "react";
-import { groupBy, getOr, set, sum } from "lodash/fp";
+import { useState, ReactNode, Fragment, SetStateAction, useMemo } from "react";
+import { getOr, set, sum } from "lodash/fp";
 import { set as setMutate } from "lodash";
 import classNames from "classnames";
 import { FloatingOverlay } from "@floating-ui/react";
@@ -8,6 +8,7 @@ import Image from "next/image";
 
 import UnlockSettings from "@/components/UnlockSettings";
 import Tooltip from "@/components/Tooltip";
+import SharePanel from "@/components/SharePanel";
 
 import useSpreadsheetData from "@/utils/useSpreadsheetData";
 import useLocalStorageState from "@/utils/useLocalStorageState";
@@ -18,11 +19,15 @@ import calculateSlayerUnlocks, {
   calculateUsedQuestsAndUnlocksForMonsters,
 } from "@/utils/calculateSlayerUnlocks";
 import calculateBlockStats, { BlockFactors } from "@/utils/calculateBlockStats";
-import useCharacterFactors from "@/utils/useCharacterFactors";
+import useCharacterFactors, {
+  CharacterFactors,
+  shortenCharacterFactors,
+} from "@/utils/useCharacterFactors";
 import {
   SlayerTaskPreference,
   SLAYER_TASK_PREFERENCE_LABELS,
 } from "@/utils/SlayerTaskPreference";
+import { ShareLinkManager } from "@/utils/useShareLink";
 
 type SlayerCalcRow = {
   Monster: string;
@@ -206,30 +211,60 @@ type SlayerCalcUserState = {
   };
 };
 
-const defaultTaskState = {
+const defaultTaskState: SlayerCalcUserState = {
   blocked: {},
   preference: {},
 };
 
-function SlayerTaskList() {
-  const {
-    data: slayerData,
-    error: error1,
-    isLoading: isLoading1,
-  } = useSpreadsheetData<SlayerCalcRow>("943606230");
-  const {
-    data: slayerUnlockData,
-    error: error2,
-    isLoading: isLoading2,
-  } = useSpreadsheetData<SlayerUnlockSpreadsheetRow>("1527618709");
+const parseShareLink =
+  (slayerData: SlayerCalcRow[]) =>
+  (shareData: URLSearchParams): SlayerCalcUserState => {
+    const calcState = defaultTaskState;
 
-  const [taskState, setTaskState] = useLocalStorageState<SlayerCalcUserState>(
-    "DURADEL_CALC_STATE",
-    defaultTaskState,
-  );
-  const [characterFactors, setCharacterFactors] = useCharacterFactors();
+    const blockData = shareData.get("block");
+    const doData = shareData.get("dos");
 
-  if (isLoading1 || isLoading2) {
+    const blocks =
+      blockData === ""
+        ? []
+        : blockData?.split(",")?.map((val) => parseInt(val)) || [];
+    const dos =
+      doData === ""
+        ? []
+        : doData?.split(",")?.map((val) => parseInt(val)) || [];
+
+    for (const block of blocks) {
+      calcState.blocked[slayerData[block].Monster] = true;
+    }
+
+    for (const doIndex of dos) {
+      calcState.preference[slayerData[doIndex].Monster] =
+        SlayerTaskPreference.DO;
+    }
+
+    return calcState;
+  };
+
+function SlayerTaskList({
+  slayerData,
+  slayerUnlockData,
+  error,
+  isLoading,
+  taskState,
+  setTaskState,
+  characterFactors,
+  setCharacterFactors,
+}: {
+  slayerData?: SlayerCalcRow[];
+  slayerUnlockData?: SlayerUnlockSpreadsheetRow[];
+  error: any;
+  isLoading: boolean;
+  taskState: SlayerCalcUserState;
+  setTaskState: (state: SetStateAction<SlayerCalcUserState>) => void;
+  characterFactors: CharacterFactors;
+  setCharacterFactors: (factors: SetStateAction<CharacterFactors>) => void;
+}) {
+  if (isLoading) {
     return (
       <div className="flex flex-col items-center mt-40">
         <span className="mb-2">Loading task info...</span>
@@ -238,15 +273,14 @@ function SlayerTaskList() {
     );
   }
 
-  if (!slayerData || !slayerUnlockData || error1 || error2) {
+  if (!slayerData || !slayerUnlockData || error) {
     return <div>An error occurred</div>;
   }
-  const tasksByMonster = groupBy((row) => row.Monster, slayerData);
 
-  const monsters = Object.entries(tasksByMonster)
-    .map(([monsterName, rows]) => ({
-      name: monsterName,
-      weight: parseInt(rows[0].Weight),
+  const monsters = slayerData
+    .map((row) => ({
+      name: row.Monster,
+      weight: parseInt(row.Weight),
     }))
     .sort((monsterA, monsterB) => {
       if (monsterA.weight === monsterB.weight) {
@@ -409,19 +443,92 @@ function Instructions() {
   );
 }
 
-export default function DuradelSlayerCalculator() {
+function DuradelSlayerCalculator() {
+  const {
+    data: slayerData,
+    error: error1,
+    isLoading: isLoading1,
+  } = useSpreadsheetData<SlayerCalcRow>("943606230");
+  const {
+    data: slayerUnlockData,
+    error: error2,
+    isLoading: isLoading2,
+  } = useSpreadsheetData<SlayerUnlockSpreadsheetRow>("1527618709");
+
+  const parseShareLinkWithData = useMemo(
+    () => slayerData && parseShareLink(slayerData),
+    [slayerData],
+  );
+
+  const [taskState, setTaskState, saveTaskState] =
+    useLocalStorageState<SlayerCalcUserState>(
+      "DURADEL_CALC_STATE",
+      defaultTaskState,
+      parseShareLinkWithData,
+    );
+  const [characterFactors, setCharacterFactors, saveCharacterFactors] =
+    useCharacterFactors();
+
+  function generateShareLinkData(): Map<string, string> | null {
+    if (!slayerData) {
+      return null;
+    }
+
+    const urlMap = shortenCharacterFactors(characterFactors);
+
+    const monsterOrder = slayerData.map((row) => row.Monster);
+    const blocks = Object.entries(taskState.blocked)
+      .filter(([monster, blocked]) => !!blocked)
+      .map(([monster, blocked]) => monsterOrder.indexOf(monster));
+
+    const dos = Object.entries(taskState.preference)
+      .filter(([monster, preference]) => preference === SlayerTaskPreference.DO)
+      .map(([monster, preference]) => monsterOrder.indexOf(monster));
+
+    urlMap.set("block", blocks.join(","));
+    urlMap.set("dos", dos.join(","));
+
+    return urlMap;
+  }
+
   return (
     <div>
-      <div className="flex px-2 h-12 bg-slate-500 text-white items-center">
-        <Link href="/">
-          <div className="inline-block rotate-180">⮕</div> Home
+      <div className="flex px-2 h-12 bg-slate-500 text-white items-stretch">
+        <Link href="/" className="flex flex-row items-center">
+          <div>
+            <div className="inline-block rotate-180">⮕</div> Home
+          </div>
         </Link>
-        <h1 className="flex-1 text-xl text-center font-bold">
+        <h1 className="flex-1 flex flex-row items-center justify-center text-xl font-bold">
           Duradel Slayer Calculator
         </h1>
+        <SharePanel
+          generateShareLinkData={generateShareLinkData}
+          saveStates={() => {
+            saveTaskState();
+            saveCharacterFactors();
+          }}
+        />
         <Instructions />
       </div>
-      <SlayerTaskList />
+      <SlayerTaskList
+        slayerData={slayerData}
+        slayerUnlockData={slayerUnlockData}
+        error={error1 || error2}
+        isLoading={isLoading1 || isLoading2}
+        taskState={taskState}
+        setTaskState={setTaskState}
+        characterFactors={characterFactors}
+        setCharacterFactors={setCharacterFactors}
+      />
     </div>
+  );
+}
+
+export default function DuradelSlayerCalculatorWithShareData() {
+  return (
+    <ShareLinkManager>
+      <DuradelSlayerCalculator />
+    </ShareLinkManager>
   );
 }
