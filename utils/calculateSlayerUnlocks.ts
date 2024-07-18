@@ -119,7 +119,7 @@ export type UnlockFactors = {
   slayerUnlocks: SlayerUnlockFactors;
 };
 
-type SlayerUnlockSpreadsheetRowCols =
+export type SlayerUnlockSpreadsheetRowCols =
   | "Monster"
   | "Slayer level"
   | "Combat level"

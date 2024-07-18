@@ -9,7 +9,7 @@ export const shorthandBlockFactorKeys: [keyof BlockFactors, string][] = [
 ];
 
 export const defaultBlockFactors: BlockFactors = {
-  questPoints: 308,
+  questPoints: 313,
   lumbridgeEliteComplete: true,
 };
 

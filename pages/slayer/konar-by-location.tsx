@@ -24,9 +24,8 @@ import {
   SlayerTaskPreference,
   SLAYER_TASK_PREFERENCE_LABELS,
 } from "@/utils/SlayerTaskPreference";
-import useCharacterFactors, {
-  shortenCharacterFactors,
-} from "@/utils/useCharacterFactors";
+import { shortenCharacterFactors } from "@/utils/characterFactors";
+import useCharacterFactors from "@/utils/useCharacterFactors";
 import { ShareLinkManager } from "@/utils/useShareLink";
 
 type SlayerCalcRow = {

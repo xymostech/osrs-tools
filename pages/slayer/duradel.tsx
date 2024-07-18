@@ -19,10 +19,11 @@ import calculateSlayerUnlocks, {
   calculateUsedQuestsAndUnlocksForMonsters,
 } from "@/utils/calculateSlayerUnlocks";
 import calculateBlockStats, { BlockFactors } from "@/utils/calculateBlockStats";
-import useCharacterFactors, {
+import {
   CharacterFactors,
   shortenCharacterFactors,
-} from "@/utils/useCharacterFactors";
+} from "@/utils/characterFactors";
+import useCharacterFactors from "@/utils/useCharacterFactors";
 import {
   SlayerTaskPreference,
   SLAYER_TASK_PREFERENCE_LABELS,
